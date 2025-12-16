@@ -27,6 +27,9 @@ class Robot:
         # self.dual_arm = dual_arm_tag
         # self.plan_success = True
 
+        # Initialize communication_flag (will be set properly in set_planner if called)
+        self.communication_flag = False
+        
         self.left_js = None
         self.right_js = None
 
@@ -124,6 +127,9 @@ class Robot:
     def reset(self, scene, need_topp=False, **kwargs):
         self._init_robot_(scene, need_topp, **kwargs)
 
+        # Check if planner should be initialized (default True for backward compatibility)
+        use_planner = kwargs.get('use_planner', True)
+
         if self.communication_flag:
             if hasattr(self, "left_conn") and self.left_conn:
                 self.left_conn.send({"cmd": "reset"})
@@ -132,7 +138,9 @@ class Robot:
                 self.right_conn.send({"cmd": "reset"})
                 _ = self.right_conn.recv()
         else:
-            if not isinstance(self.left_planner, CuroboPlanner) or not isinstance(self.right_planner, CuroboPlanner):
+            # Only set planner if use_planner=True and planner is not already initialized
+            if use_planner and (not hasattr(self, 'left_planner') or not hasattr(self, 'right_planner') or \
+               not isinstance(self.left_planner, CuroboPlanner) or not isinstance(self.right_planner, CuroboPlanner)):
                 self.set_planner(scene=scene)
 
         self.init_joints()
@@ -342,15 +350,29 @@ class Robot:
         if self.communication_flag:
             self.left_conn.send({"cmd": "plan_grippers", "now_val": now_val, "target_val": target_val})
             return self.left_conn.recv()
-        else:
+        elif hasattr(self, 'left_planner'):
             return self.left_planner.plan_grippers(now_val, target_val)
+        else:
+            # Fallback: simple linear interpolation when planner is not initialized
+            num_step = 50
+            dis_val = target_val - now_val
+            per_step = dis_val / num_step
+            vals = np.linspace(now_val, target_val, num_step)
+            return {"num_step": num_step, "per_step": per_step, "result": vals}
 
     def right_plan_grippers(self, now_val, target_val):
         if self.communication_flag:
             self.right_conn.send({"cmd": "plan_grippers", "now_val": now_val, "target_val": target_val})
             return self.right_conn.recv()
-        else:
+        elif hasattr(self, 'right_planner'):
             return self.right_planner.plan_grippers(now_val, target_val)
+        else:
+            # Fallback: simple linear interpolation when planner is not initialized
+            num_step = 50
+            dis_val = target_val - now_val
+            per_step = dis_val / num_step
+            vals = np.linspace(now_val, target_val, num_step)
+            return {"num_step": num_step, "per_step": per_step, "result": vals}
 
     def left_plan_multi_path(
         self,

@@ -69,6 +69,10 @@ class Base_Task(gym.Env):
         self.dual_arm = kwags.get("dual_arm", True)
         self.eval_mode = kwags.get("eval_mode", False)
 
+        # Planner configuration
+        # Default True for backward compatibility with original RoboTwin behavior
+        # Set to False in ILStudio to skip GPU-dependent planner initialization
+        self.use_planner = kwags.get("use_planner", True)
         self.need_topp = True  # TODO
 
         # Random
@@ -387,7 +391,9 @@ class Base_Task(gym.Env):
         """
         if not hasattr(self, "robot"):
             self.robot = Robot(self.scene, self.need_topp, **kwags)
-            self.robot.set_planner(self.scene)
+            # Only initialize planner if use_planner is True
+            if self.use_planner:
+                self.robot.set_planner(self.scene)
             self.robot.init_joints()
         else:
             self.robot.reset(self.scene, self.need_topp, **kwags)
